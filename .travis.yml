@@ -1,42 +1,35 @@
-language: python
-
-python:
-  - 2.6
-  - 2.7
-  - 3.2
-  - 3.3
-  - 3.4
-  - pypy
-  - pypy3
+os:
+  - linux
 
 env:
-  - BACKEND=c
-  - BACKEND=cpp
+  - WINEARCH=win32
+  - WINEARCH=""
 
-branches:
-  only:
-    - master
+cache: apt
 
 before_install:
-  - sudo apt-get update
-  - sudo apt-get install gdb python$( python -c 'import sys; print("%d.%d" % sys.version_info[:2])' )-dbg || true
-  - dpkg -l gdb || true
+  - "export DISPLAY=:99.0"
+  - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -ac -screen 0 800x600x16"
 
-install:
-  - CFLAGS="-O2 -ggdb -Wall -Wextra $(python -c 'import sys; print("-fno-strict-aliasing" if sys.version_info[0] == 2 else "")')" python setup.py build
+before_script:
+  - sudo add-apt-repository -y ppa:pipelight/stable
+  - sudo apt-get update -qq
+  - sudo apt-get install -y --install-recommends wine-staging wine-staging-compat subversion
+  - wget https://github.com/fracting/msys2-scripts-deb/raw/master/msys2-scripts_20150722_i386.deb
+  - sudo dpkg -i msys2-scripts_20150722_i386.deb
+
+language: c
+
+compiler:
+  - gcc
 
 script:
-  - PYTHON_DBG="python$( python -c 'import sys; print("%d.%d" % sys.version_info[:2])' )-dbg"
-  - if $PYTHON_DBG -V >&2; then CFLAGS="-O0 -ggdb" $PYTHON_DBG runtests.py -vv Debugger --backends=$BACKEND; fi
-  - CFLAGS="-O2 -ggdb -Wall -Wextra $(python -c 'import sys; print("-fno-strict-aliasing" if sys.version_info[0] == 2 else "")')" python setup.py build_ext -i
-  - CFLAGS="-O0 -ggdb -Wall -Wextra" python runtests.py -vv -x Debugger --backends=$BACKEND
-
-matrix:
-  allow_failures:
-    - python: pypy
-    - python: pypy3
-  exclude:
-    - python: pypy
-      env: BACKEND=cpp
-    - python: pypy3
-      env: BACKEND=cpp      
+  - srcdir=~/src
+  - _realname=cython
+  - pkgbuild_repo=https://github.com/Alexpux/MINGW-packages/trunk/mingw-w64-cython-git
+  - svn co ${pkgbuild_repo} ${srcdir}
+  - ln -svf ${PWD} ${srcdir}/${_realname}
+  - cp ${srcdir}/PKGBUILD ~
+  - msys2-prepare
+  - msys2-wrapper "pacman -S --needed --noconfirm mingw-w64-i686-toolchain"
+  - msys2-wrapper "makepkg-mingw -s --noconfirm --noprogressbar --noextract --skippgpcheck -f"
